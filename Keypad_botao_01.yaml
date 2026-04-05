@@ -1,0 +1,122 @@
+blueprint:
+name: Keypad Botão 1 (Ciclo de Cenas)
+description: Alterna entre cenas a cada clique curto e reseta no clique longo
+domain: automation
+
+input:
+botao:
+name: Botão
+selector:
+entity:
+domain: binary_sensor
+
+
+cena_1:
+  name: Cena 1
+  selector:
+    target:
+      entity:
+        domain: scene
+
+cena_2:
+  name: Cena 2
+  selector:
+    target:
+      entity:
+        domain: scene
+
+cena_3:
+  name: Cena 3
+  selector:
+    target:
+      entity:
+        domain: scene
+
+cena_off:
+  name: Cena OFF
+  selector:
+    target:
+      entity:
+        domain: scene
+
+
+mode: restart
+
+trigger:
+
+- id: curto
+  platform: state
+  entity_id: !input botao
+  to: "on"
+  for:
+  milliseconds: 50
+
+- id: longo
+  platform: state
+  entity_id: !input botao
+  to: "on"
+  for:
+  seconds: 1
+
+variables:
+contador: "{{ states('input_number.contador_keypad_01') | int }}"
+
+action:
+
+- choose:
+
+  - conditions:
+
+    - condition: trigger
+      id: curto
+      sequence:
+
+    - service: input_number.set_value
+      target:
+      entity_id: input_number.contador_keypad_01
+      data:
+      value: "{{ contador + 1 }}"
+
+    - choose:
+
+      - conditions: "{{ contador + 1 == 1 }}"
+        sequence:
+
+        - service: scene.turn_on
+          target: !input cena_1
+
+      - conditions: "{{ contador + 1 == 2 }}"
+        sequence:
+
+        - service: scene.turn_on
+          target: !input cena_2
+
+      - conditions: "{{ contador + 1 == 3 }}"
+        sequence:
+
+        - service: scene.turn_on
+          target: !input cena_3
+
+      - conditions: "{{ contador + 1 > 3 }}"
+        sequence:
+
+        - service: scene.turn_on
+          target: !input cena_off
+        - service: input_number.set_value
+          target:
+          entity_id: input_number.contador_keypad_01
+          data:
+          value: 0
+
+  - conditions:
+
+    - condition: trigger
+      id: longo
+      sequence:
+    - service: scene.turn_on
+      target: !input cena_off
+    - service: input_number.set_value
+      target:
+      entity_id: input_number.contador_keypad_01
+      data:
+      value: 0
