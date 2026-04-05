@@ -1,11 +1,11 @@
 blueprint:
-  name: "Keypad Ultra-Fast (Cliques Rápidos)"
+  name: "Botão Cenas"
   description: "Versão otimizada para aceitar múltiplos cliques em sequência sem travar."
   domain: automation
   input:
     button_id_input:
-      name: botao_1
-      description: "Escreva exatamente: botao_1"
+      name: ID do botão
+      description: "Escreva o ID do botão"
     counter_helper:
       name: Ajudante de Contador
       selector: { entity: { domain: input_number } }
@@ -22,8 +22,7 @@ blueprint:
       name: Cena Desligar
       selector: { entity: { domain: scene } }
 
-# MUDANÇA CHAVE: 'queued' faz com que, se você clicar 3 vezes rápido, 
-# ele processe as 3 ações uma atrás da outra sem perder nenhuma.
+
 mode: queued
 max: 10
 
