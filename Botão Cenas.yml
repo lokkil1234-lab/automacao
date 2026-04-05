@@ -5,13 +5,13 @@ blueprint:
   input:
     button_entity:
       name: Sensor do Botão
-      description: Selecione o binary_sensor do seu ESP (Ex: Botão 1).
+      description: "Selecione o binary_sensor do seu ESP (Ex: Botão 1)."
       selector:
         entity:
           domain: binary_sensor
     counter_helper:
       name: Ajudante de Contador
-      description: O input_number criado para contar as cenas (0 a 3).
+      description: "O input_number criado para contar as cenas (0 a 3)."
       selector:
         entity:
           domain: input_number
@@ -26,7 +26,7 @@ blueprint:
       selector: { entity: { domain: scene } }
     scene_off:
       name: Cena Desligar TUDO
-      description: Acionada no Clique Longo ou após a última cena.
+      description: "Acionada no Clique Longo ou após a última cena."
       selector: { entity: { domain: scene } }
 
 mode: parallel
