@@ -10,7 +10,7 @@ selector:
 entity:
 domain: binary_sensor
 
-```
+
 cena_1:
   name: Cena 1
   selector:
@@ -38,7 +38,7 @@ cena_off:
     target:
       entity:
         domain: scene
-```
+
 
 mode: restart
 
