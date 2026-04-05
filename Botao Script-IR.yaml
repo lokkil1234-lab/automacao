@@ -1,26 +1,21 @@
 blueprint:
-  name: "Botão Multi-Script (IR/IP)"
-  description: "Cicla entre scripts no clique curto e executa um script de desligar no clique longo."
+  name: "Botão Script-IR (Curto/Longo)"
+  description: "Executa um script para clique curto e outro para clique longo, sem ciclos."
   domain: automation
   input:
     button_id_input:
-      name: ID do Botão
+      name: "ID do Botão"
       description: "ID enviado pelo ESP (ex: botao_tv)"
-    counter_helper:
-      name: Ajudante de Contador
-      selector: { entity: { domain: input_number } }
-    script_1:
-      name: Script 1 (Ex: Ligar TV / HDMI 1)
-      selector: { entity: { domain: script } }
-    script_2:
-      name: Script 2 (Ex: Netflix)
-      selector: { entity: { domain: script } }
-    script_3:
-      name: Script 3 (Ex: YouTube)
-      selector: { entity: { domain: script } }
+    script_curto:
+      name: "Script Clique Curto"
+      selector:
+        entity:
+          domain: script
     script_longo:
-      name: Script Clique Longo (Ex: Desligar Tudo)
-      selector: { entity: { domain: script } }
+      name: "Script Clique Longo"
+      selector:
+        entity:
+          domain: script
 
 mode: queued
 max: 10
@@ -34,44 +29,22 @@ action:
       evento_botao: "{{ trigger.event.data.button }}"
       evento_tipo: "{{ trigger.event.data.type }}"
       id_configurado: !input button_id_input
-      entidade_contador: !input counter_helper
 
-  # Filtra se o evento é deste botão específico
+  # Filtra se o evento pertence a este botão
   - condition: template
     value_template: "{{ evento_botao == id_configurado }}"
 
   - choose:
-      # --- CLIQUE CURTO (Ciclo de Scripts) ---
+      # --- LÓGICA CLIQUE CURTO ---
       - conditions: "{{ evento_tipo == 'curto' }}"
         sequence:
-          - service: input_number.set_value
-            target: { entity_id: !input counter_helper }
-            data:
-              value: >
-                {% set atual = states(entidade_contador) | float(0) %}
-                {{ 0 if atual >= 3 else atual + 1 }}
-          
-          - delay: "00:00:00.02"
-          
-          - choose:
-              - conditions: "{{ is_state(entidade_contador, '1.0') or is_state(entidade_contador, '1') }}"
-                sequence: [{service: script.turn_on, target: {entity_id: !input script_1}}]
-              - conditions: "{{ is_state(entidade_contador, '2.0') or is_state(entidade_contador, '2') }}"
-                sequence: [{service: script.turn_on, target: {entity_id: !input script_2}}]
-              - conditions: "{{ is_state(entidade_contador, '3.0') or is_state(entidade_contador, '3') }}"
-                sequence: [{service: script.turn_on, target: {entity_id: !input script_3}}]
-            default:
-              - service: script.turn_on
-                target: {entity_id: !input script_longo}
-              - service: input_number.set_value
-                target: {entity_id: !input counter_helper}
-                data: {value: 0}
+          - service: script.turn_on
+            target:
+              entity_id: !input script_curto
 
-      # --- CLIQUE LONGO (Executa script de desligar) ---
+      # --- LÓGICA CLIQUE LONGO ---
       - conditions: "{{ evento_tipo == 'longo' }}"
         sequence:
           - service: script.turn_on
-            target: {entity_id: !input script_longo}
-          - service: input_number.set_value
-            target: {entity_id: !input counter_helper}
-            data: {value: 0}
+            target:
+              entity_id: !input script_longo
