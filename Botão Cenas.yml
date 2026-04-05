@@ -1,12 +1,11 @@
 blueprint:
-  name: "Botão Cenas"
-  description: "Usa eventos nativos do ESPHome para acionamento instantâneo."
+  name: "Keypad Event-Based - Final"
+  description: "Acionamento ultra-rápido baseado no evento esphome.esp_click_event"
   domain: automation
   input:
-    # Não usamos mais entidade, usamos o ID que definimos no ESP
-    button_id:
-      name: ID do Botão
-      description: "O nome do botão definido no ESP (ex: botao_1)"
+    button_id_input:
+      name: botao_1
+      description: "Escreva exatamente: botao_1"
       default: "botao_1"
     counter_helper:
       name: Ajudante de Contador
@@ -26,45 +25,42 @@ blueprint:
 
 trigger:
   - platform: event
-    event_type: esphome.esp_click_event # O mesmo nome que corrigimos acima
+    event_type: esphome.esp_click_event
 
 action:
-  - variables:
-      button_pressed: "{{ trigger.event.data.button }}"
-      click_type: "{{ trigger.event.data.type }}"
-      counter_entity: !input counter_helper
-
-  # Só continua se o evento for do botão que esta automação controla
+  # Filtro de Segurança: Só executa se o botão no evento for o mesmo desta automação
   - condition: template
-    value_template: "{{ button_pressed == input.button_id }}"
+    value_template: "{{ trigger.event.data.button == input.button_id_input }}"
 
   - choose:
-      # LÓGICA CLIQUE CURTO
-      - conditions: "{{ click_type == 'curto' }}"
+      # --- LÓGICA CLIQUE CURTO ---
+      - conditions: "{{ trigger.event.data.type == 'curto' }}"
         sequence:
           - service: input_number.set_value
             target: { entity_id: !input counter_helper }
             data:
               value: >
-                {% set current = states(counter_entity) | float(0) %}
-                {{ 0 if current >= 3 else current + 1 }}
-          - delay: "00:00:00.02"
+                {% set contador = states(input.counter_helper) | float(0) %}
+                {{ 0 if contador >= 3 else contador + 1 }}
+          
+          - delay: "00:00:00.05"
+          
           - choose:
-              - conditions: "{{ is_state(counter_entity, '1.0') }}"
+              - conditions: "{{ is_state(input.counter_helper, '1.0') }}"
                 sequence: [{service: scene.turn_on, target: {entity_id: !input scene_1}}]
-              - conditions: "{{ is_state(counter_entity, '2.0') }}"
+              - conditions: "{{ is_state(input.counter_helper, '2.0') }}"
                 sequence: [{service: scene.turn_on, target: {entity_id: !input scene_2}}]
-              - conditions: "{{ is_state(counter_entity, '3.0') }}"
+              - conditions: "{{ is_state(input.counter_helper, '3.0') }}"
                 sequence: [{service: scene.turn_on, target: {entity_id: !input scene_3}}]
             default:
               - service: scene.turn_on
                 target: {entity_id: !input scene_off}
 
-      # LÓGICA CLIQUE LONGO
-      - conditions: "{{ click_type == 'longo' }}"
+      # --- LÓGICA CLIQUE LONGO ---
+      - conditions: "{{ trigger.event.data.type == 'longo' }}"
         sequence:
           - service: scene.turn_on
             target: {entity_id: !input scene_off}
           - service: input_number.set_value
-            target: {entity_id: !input counter_helper}
+            target: {entity_id: !input counter_helper }
             data: {value: 0}
