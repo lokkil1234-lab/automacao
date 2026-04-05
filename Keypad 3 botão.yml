@@ -1,0 +1,149 @@
+blueprint:
+  name: Keypad 3 Botões - Timer Pro
+  description: Controle de 3 botões com lógica de Timer para o Botão 1 e Wait para os demais.
+  domain: automation
+  input:
+    button_1:
+      name: Botão 1 (Cenas)
+      selector: { entity: { domain: binary_sensor } }
+    counter_helper:
+      name: Variável do Contador de Cenas
+      selector: { entity: { domain: input_number } }
+    scene_1:
+      name: Cena 1
+      selector: { entity: { domain: scene } }
+    scene_2:
+      name: Cena 2
+      selector: { entity: { domain: scene } }
+    scene_3:
+      name: Cena 3
+      selector: { entity: { domain: scene } }
+    scene_off:
+      name: Cena Desligar
+      selector: { entity: { domain: scene } }
+    button_2:
+      name: Botão 2 (Ar Condicionado)
+      selector: { entity: { domain: binary_sensor } }
+    action_ac_off:
+      name: Botão 2 - Clique Curto
+      selector: { action: {} }
+    action_ac_on:
+      name: Botão 2 - Clique Longo
+      selector: { action: {} }
+    button_3:
+      name: Botão 3 (Cortina)
+      selector: { entity: { domain: binary_sensor } }
+    cover_entity:
+      name: Cortina
+      selector: { entity: { domain: cover } }
+    action_all_off:
+      name: Botão 3 - Clique Longo
+      selector: { action: {} }
+
+mode: parallel
+max: 10
+
+variables:
+  counter_var: !input counter_helper
+
+trigger:
+  - platform: state
+    entity_id: !input button_1
+    id: "btn1"
+  - platform: state
+    entity_id: !input button_2
+    from: "off"
+    to: "on"
+    id: "btn2"
+  - platform: state
+    entity_id: !input button_3
+    from: "off"
+    to: "on"
+    id: "btn3"
+
+action:
+  - choose:
+      # =================================================
+      # LÓGICA BOTÃO 1 (TIMER)
+      # =================================================
+      - conditions:
+          - condition: trigger
+            id: "btn1"
+        sequence:
+          - choose:
+              # Se apertou (ON), apenas para e espera o soltar (OFF)
+              - conditions: "{{ trigger.to_state.state == 'on' }}"
+                sequence:
+                  - stop: "Aguardando soltar"
+              # Se soltou (OFF), calcula o tempo
+              - conditions: "{{ trigger.to_state.state == 'off' }}"
+                sequence:
+                  - variables:
+                      duracao: "{{ as_timestamp(now()) - as_timestamp(trigger.from_state.last_changed) }}"
+                  - choose:
+                      # Clique Curto
+                      - conditions: "{{ duracao < 0.6 }}"
+                        sequence:
+                          - service: input_number.set_value
+                            target: { entity_id: !input counter_helper }
+                            data:
+                              value: >
+                                {% set current = states(counter_var) | float(0) %}
+                                {{ 0 if current >= 3 else current + 1 }}
+                          - delay: "00:00:00.05"
+                          - choose:
+                              - conditions: "{{ is_state(counter_var, '1.0') }}"
+                                sequence: [{ service: scene.turn_on, target: { entity_id: !input scene_1 } }]
+                              - conditions: "{{ is_state(counter_var, '2.0') }}"
+                                sequence: [{ service: scene.turn_on, target: { entity_id: !input scene_2 } }]
+                              - conditions: "{{ is_state(counter_var, '3.0') }}"
+                                sequence: [{ service: scene.turn_on, target: { entity_id: !input scene_3 } }]
+                            default:
+                              - service: scene.turn_on
+                                target: { entity_id: !input scene_off }
+                      # Clique Longo
+                      - conditions: "{{ duracao >= 0.6 }}"
+                        sequence:
+                          - service: scene.turn_on
+                            target: { entity_id: !input scene_off }
+                          - service: input_number.set_value
+                            target: { entity_id: !input counter_helper }
+                            data: { value: 0 }
+
+      # =================================================
+      # LÓGICA BOTÃO 2 (AR CONDICIONADO)
+      # =================================================
+      - conditions:
+          - condition: trigger
+            id: "btn2"
+        sequence:
+          - wait_for_trigger:
+              - platform: state
+                entity_id: !input button_2
+                to: "off"
+            timeout: "00:00:01"
+          - choose:
+              - conditions: "{{ wait.trigger == none }}"
+                sequence: !input action_ac_on
+              - conditions: "{{ wait.trigger != none }}"
+                sequence: !input action_ac_off
+
+      # =================================================
+      # LÓGICA BOTÃO 3 (CORTINA)
+      # =================================================
+      - conditions:
+          - condition: trigger
+            id: "btn3"
+        sequence:
+          - wait_for_trigger:
+              - platform: state
+                entity_id: !input button_3
+                to: "off"
+            timeout: "00:00:01"
+          - choose:
+              - conditions: "{{ wait.trigger == none }}"
+                sequence: !input action_all_off
+              - conditions: "{{ wait.trigger != none }}"
+                sequence:
+                  - service: cover.toggle
+                    target: { entity_id: !input cover_entity }
