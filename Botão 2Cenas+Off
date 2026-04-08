@@ -1,0 +1,106 @@
+blueprint:
+  name: "Botão 2Cenas+Off"
+  description: "Versão otimizada para aceitar múltiplos cliques em sequência sem travar. Inclui tempo de esquecimento para desligamento automático."
+  domain: automation
+  input:
+    button_id_input:
+      name: ID do botão
+      description: "Escreva o ID do botão"
+    counter_helper:
+      name: Ajudante de Contador
+      selector: { entity: { domain: input_number } }
+    scene_1:
+      name: Cena 1
+      selector: { entity: { domain: scene } }
+    scene_2:
+      name: Cena 2
+      selector: { entity: { domain: scene } }
+    scene_off:
+      name: Cena Desligar
+      selector: { entity: { domain: scene } }
+    tempo_esquecimento:
+      name: Tempo de Esquecimento
+      description: "Tempo para a luz apagar automaticamente se esquecida. Exemplo: '01:00:00' para 1 hora, '00:30:00' para 30 minutos."
+      default: "01:00:00"
+
+mode: queued
+max: 10
+
+trigger:
+  # --- GATILHO ORIGINAL DO CLIQUE ---
+  - platform: event
+    event_type: esphome.esp_click_event
+    id: "clique"
+
+  # --- NOVO GATILHO: TEMPO DE ESQUECIMENTO ---
+  # Dispara de forma independente se o contador ficar em 1, 2 ou 3 pelo tempo x.
+  - platform: state
+    entity_id: !input counter_helper
+    to:
+      - "1.0"
+      - "1"
+      - "2.0"
+      - "2"
+    for: !input tempo_esquecimento
+    id: "esquecimento"
+
+action:
+  - variables:
+      # Um 'if' rápido foi adicionado apenas para evitar erros de log quando o gatilho for o cronômetro e não o clique
+      evento_botao: "{{ trigger.event.data.button if trigger.platform == 'event' else 'nenhum' }}"
+      evento_tipo: "{{ trigger.event.data.type if trigger.platform == 'event' else 'nenhum' }}"
+      id_configurado: !input button_id_input
+      entidade_contador: !input counter_helper
+
+  # --- AÇÃO DO TEMPO DE ESQUECIMENTO ---
+  # Se o gatilho foi o cronômetro, ele desliga a cena, zera o contador e encerra a automação aqui mesmo.
+  - if:
+      - condition: template
+        value_template: "{{ trigger.id == 'esquecimento' }}"
+    then:
+      - service: scene.turn_on
+        target: {entity_id: !input scene_off}
+      - service: input_number.set_value
+        target: {entity_id: !input counter_helper}
+        data: {value: 0}
+      - stop: "Tempo de esquecimento atingido, cena desligar executada."
+
+  # --- INÍCIO DA SUA LÓGICA ORIGINAL INTACTA ---
+  - condition: template
+    value_template: "{{ evento_botao == id_configurado }}"
+
+  - choose:
+      # --- CLIQUE CURTO ---
+      - conditions: "{{ evento_tipo == 'curto' }}"
+        sequence:
+          # Incrementa o contador IMEDIATAMENTE
+          - service: input_number.set_value
+            target: { entity_id: !input counter_helper }
+            data:
+              value: >
+                {% set atual = states(entidade_contador) | float(0) %}
+                {{ 0 if atual >= 2 else atual + 1 }}
+          
+          # Removi o delay longo e usei um wait_template curto apenas para garantir a escrita no banco de dados
+          - delay: "00:00:00.01"
+          
+          - choose:
+              - conditions: "{{ is_state(entidade_contador, '1.0') or is_state(entidade_contador, '1') }}"
+                sequence: [{service: scene.turn_on, target: {entity_id: !input scene_1}}]
+              - conditions: "{{ is_state(entidade_contador, '2.0') or is_state(entidade_contador, '2') }}"
+                sequence: [{service: scene.turn_on, target: {entity_id: !input scene_2}}]
+            default:
+              - service: scene.turn_on
+                target: {entity_id: !input scene_off}
+              - service: input_number.set_value
+                target: {entity_id: !input counter_helper}
+                data: {value: 0}
+
+      # --- CLIQUE LONGO ---
+      - conditions: "{{ evento_tipo == 'longo' }}"
+        sequence:
+          - service: scene.turn_on
+            target: {entity_id: !input scene_off}
+          - service: input_number.set_value
+            target: {entity_id: !input counter_helper}
+            data: {value: 0}
