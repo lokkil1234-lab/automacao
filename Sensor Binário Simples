@@ -1,0 +1,61 @@
+blueprint:
+  name: "Sensor Binário - Simples"
+  description: "Aciona uma cena ao detectar movimento e desliga (ativa cena off) após um tempo sem movimento."
+  domain: automation
+  input:
+    sensor_id_input:
+      name: ID do Sensor 
+      description: "O ID enviado pelo sensor (EspHome)"
+    tempo_ligada:
+      name: Tempo de Permanência
+      description: "Quanto tempo a luz ficará acesa após o ÚLTIMO movimento"
+      default: 60
+      selector:
+        number:
+          min: 1
+          max: 3600
+          unit_of_measurement: segundos
+          mode: box
+    scene_on:
+      name: Cena Ligar
+      description: "Cena ativada quando houver movimento"
+      selector:
+        entity:
+          domain: scene
+    scene_off:
+      name: Cena Desligar
+      description: "Cena ativada quando o tempo acabar"
+      selector:
+        entity:
+          domain: scene
+
+# O 'restart' zera o cronômetro do delay a cada novo movimento detectado
+mode: restart
+
+trigger:
+  - platform: event
+    event_type: esphome.esp_click_event
+
+action:
+  - variables:
+      evento_sensor: "{{ trigger.event.data.button }}"
+      evento_tipo: "{{ trigger.event.data.type }}"
+      id_configurado: !input sensor_id_input
+
+  # Confirma que o evento veio deste sensor específico
+  - condition: template
+    value_template: "{{ evento_sensor == id_configurado and evento_tipo == 'curto' }}"
+
+  # 1. Liga a Cena Principal
+  - service: scene.turn_on
+    target:
+      entity_id: !input scene_on
+
+  # 2. Inicia o Cronômetro
+  - delay:
+      seconds: !input tempo_ligada
+
+  # 3. Liga a Cena de Desligamento (se o cronômetro não for interrompido por um novo movimento)
+  - service: scene.turn_on
+    target:
+      entity_id: !input scene_off
