@@ -1,10 +1,10 @@
 blueprint:
   name: "Botão 2Cenas+Off"
-  description: "Versão otimizada para aceitar múltiplos cliques em sequência sem travar. Inclui tempo de esquecimento para desligamento automático."
+  description: "Botão para acionar duas cenas com comando de press and hold para off + tempo de esquecimento."
   domain: automation
   input:
     button_id_input:
-      name: ID do botão
+      name: ID do Botão
       description: "Escreva o ID do botão"
     counter_helper:
       name: Ajudante de Contador
