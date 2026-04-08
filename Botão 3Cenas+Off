@@ -4,7 +4,7 @@ blueprint:
   domain: automation
   input:
     button_id_input:
-      name: ID do botão
+      name: ID do Botão
       description: "Escreva o ID do botão"
     counter_helper:
       name: Ajudante de Contador
