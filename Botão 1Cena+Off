@@ -1,6 +1,6 @@
 blueprint:
-  name: "Botão Cenas"
-  description: "Versão otimizada para aceitar múltiplos cliques em sequência sem travar. Inclui tempo de esquecimento para desligamento automático."
+  name: "Botão 1Cena+Off"
+  description: "Botão para acionar uma cena com comando de press and hold para off + tempo de esquecimento."
   domain: automation
   input:
     button_id_input:
