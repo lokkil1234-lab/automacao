@@ -1,6 +1,6 @@
 blueprint:
   name: "Botão 4Cenas+Off"
-  description: "Versão otimizada para aceitar múltiplos cliques em sequência sem travar. Inclui tempo de esquecimento para desligamento automático."
+  description: "Botão para acionar quatro cenas com comando de press and hold para off + tempo de esquecimento."
   domain: automation
   input:
     button_id_input:
