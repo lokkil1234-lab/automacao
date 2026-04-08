@@ -1,0 +1,99 @@
+blueprint:
+  name: "Sensor Binário - Períodos"
+  description: "Aciona cenas diferentes baseadas em 3 horários e desliga após tempo determinado."
+  domain: automation
+  input:
+    sensor_id_input:
+      name: ID do Sensor
+      description: "O ID enviado pelo sensor (EspHome)"
+    tempo_ligada:
+      name: Tempo de Permanência
+      description: "Quanto tempo a cena ficará ativa antes de desligar"
+      default: 60
+      selector:
+        number:
+          min: 1
+          max: 3600
+          unit_of_measurement: seconds
+          mode: box
+    # --- CENAS ---
+    scene_dia:
+      name: Cena Dia
+      selector: { entity: { domain: scene } }
+    scene_noite:
+      name: Cena Noite
+      selector: { entity: { domain: scene } }
+    scene_madrugada:
+      name: Cena Madrugada
+      selector: { entity: { domain: scene } }
+    scene_off:
+      name: Cena Desligar
+      selector: { entity: { domain: scene } }
+    # --- HORÁRIOS ---
+    dia_inicio:
+      name: Início do Dia
+      default: "06:00:00"
+      selector: { time: {} }
+    dia_fim:
+      name: Fim do Dia
+      default: "18:00:00"
+      selector: { time: {} }
+    noite_inicio:
+      name: Início da Noite
+      default: "18:00:01"
+      selector: { time: {} }
+    noite_fim:
+      name: Fim da Noite
+      default: "23:59:59"
+      selector: { time: {} }
+
+# 'restart' é fundamental para sensores: novo movimento reinicia o cronômetro
+mode: restart
+
+trigger:
+  - platform: event
+    event_type: esphome.esp_click_event
+
+action:
+  - variables:
+      evento_sensor: "{{ trigger.event.data.button }}"
+      evento_tipo: "{{ trigger.event.data.type }}"
+      id_configurado: !input sensor_id_input
+      
+      # Variáveis de Tempo
+      agora: "{{ now().strftime('%H:%M:%S') }}"
+      inicio_dia: !input dia_inicio
+      fim_dia: !input dia_fim
+      inicio_noite: !input noite_inicio
+      fim_noite: !input noite_fim
+
+  # Filtra o ID do sensor e o pulso curto
+  - condition: template
+    value_template: "{{ evento_sensor == id_configurado and evento_tipo == 'curto' }}"
+
+  # --- ESCOLHA DA CENA POR HORÁRIO ---
+  - choose:
+      # Lógica DIA
+      - conditions: "{{ agora >= inicio_dia and agora <= fim_dia }}"
+        sequence:
+          - service: scene.turn_on
+            target: { entity_id: !input scene_dia }
+      
+      # Lógica NOITE
+      - conditions: "{{ agora >= inicio_noite and agora <= fim_noite }}"
+        sequence:
+          - service: scene.turn_on
+            target: { entity_id: !input scene_noite }
+      
+      # Lógica MADRUGADA (O que sobrar)
+      - conditions: [] 
+        sequence:
+          - service: scene.turn_on
+            target: { entity_id: !input scene_madrugada }
+
+  # --- ESPERA E DESLIGA ---
+  - delay:
+      seconds: !input tempo_ligada
+
+  - service: scene.turn_on
+    target: { entity_id: !input scene_off }
