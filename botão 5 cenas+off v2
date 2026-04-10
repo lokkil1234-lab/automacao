@@ -7,7 +7,7 @@ blueprint:
       name: ID do Botão
     counter_helper:
       name: Ajudante de Contador
-      selector: { entity: { domain: input_number } }
+      selector: { entity: { domain: counter } }
     scene_1:
       name: Cena 1
       selector: { entity: { domain: scene } }
