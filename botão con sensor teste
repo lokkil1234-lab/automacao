@@ -108,7 +108,7 @@ mode: restart
 trigger:
   - platform: event
     event_type: esphome.esp_click_event
-    id: "evento_esphome"
+    id: "clique"
 
   # Dispara quando fica em qualquer cena manual por X tempo
   - platform: state
