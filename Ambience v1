@@ -1,0 +1,232 @@
+blueprint:
+  name: "Botão Cenas + Sensor Períodos (Com Inibição)"
+  description: "Combinação do ciclo de cenas dinâmico e acionamento por sensor com inibição cruzada."
+  domain: automation
+  input:
+    # ==========================================
+    # INPUTS: BOTÃO CENAS
+    # ==========================================
+    button_id_input:
+      name: ID do Botão
+    counter_helper:
+      name: Ajudante de Contador
+      selector: { entity: { domain: counter } }
+    scene_1:
+      name: Cena 1
+      selector: { entity: { domain: scene } }
+    scene_2:
+      name: Cena 2
+      default: []
+      selector: { entity: { domain: scene } }
+    scene_3:
+      name: Cena 3
+      default: []
+      selector: { entity: { domain: scene } }
+    scene_4:
+      name: Cena 4
+      default: []
+      selector: { entity: { domain: scene } }
+    scene_5:
+      name: Cena 5
+      default: []
+      selector: { entity: { domain: scene } }
+    scene_off:
+      name: Cena Desligar (Botão)
+      selector: { entity: { domain: scene } }
+    tempo_esquecimento:
+      name: Tempo de Esquecimento (Botão)
+      default: "01:00:00"
+      selector: { duration: {} }
+
+    # ==========================================
+    # INPUTS: CONTROLE DE INIBIÇÃO
+    # ==========================================
+    helper_inibicao:
+      name: Helper de Inibição do Sensor
+      description: "Ajudante (Alternar/Input Boolean) que bloqueia o sensor quando está ligado."
+      selector: { entity: { domain: input_boolean } }
+    tempo_inibicao:
+      name: Tempo de Inibição Pós-Off
+      description: "Tempo (em segundos) de espera após a cena desligar antes de liberar o sensor."
+      default: 10
+      selector:
+        number:
+          min: 0
+          max: 3600
+          unit_of_measurement: seconds
+          mode: box
+
+    # ==========================================
+    # INPUTS: SENSOR PERÍODOS
+    # ==========================================
+    sensor_id_input:
+      name: ID do Sensor
+      description: "O ID enviado pelo sensor (EspHome)"
+    tempo_ligada:
+      name: Tempo de Permanência (Sensor)
+      description: "Quanto tempo a cena ficará ativa antes de desligar"
+      default: 60
+      selector:
+        number:
+          min: 1
+          max: 3600
+          unit_of_measurement: seconds
+          mode: box
+    scene_dia:
+      name: Cena Dia
+      selector: { entity: { domain: scene } }
+    scene_noite:
+      name: Cena Noite
+      selector: { entity: { domain: scene } }
+    scene_madrugada:
+      name: Cena Madrugada
+      selector: { entity: { domain: scene } }
+    scene_off_sensor:
+      name: Cena Desligar (Sensor)
+      selector: { entity: { domain: scene } }
+    dia_inicio:
+      name: Início do Dia
+      default: "06:00:00"
+      selector: { time: {} }
+    dia_fim:
+      name: Fim do Dia
+      default: "18:00:00"
+      selector: { time: {} }
+    noite_inicio:
+      name: Início da Noite
+      default: "18:00:01"
+      selector: { time: {} }
+    noite_fim:
+      name: Fim da Noite
+      default: "23:59:59"
+      selector: { time: {} }
+
+mode: parallel
+max: 10
+
+trigger:
+  - platform: event
+    event_type: esphome.esp_click_event
+    id: "clique_ou_sensor"
+    
+  - platform: numeric_state
+    entity_id: !input counter_helper
+    above: 0
+    for: !input tempo_esquecimento
+    id: "esquecimento"
+
+action:
+  - variables:
+      # Globais
+      evento_id: "{{ trigger.event.data.button if trigger.platform == 'event' else 'nenhum' }}"
+      evento_tipo: "{{ trigger.event.data.type if trigger.platform == 'event' else 'nenhum' }}"
+      
+      # Botão & Inibição
+      entidade_contador: !input counter_helper
+      limite_max: "{{ state_attr(entidade_contador, 'maximum') | int(5) }}"
+      id_configurado_botao: !input button_id_input
+      entidade_inibicao: !input helper_inibicao
+      
+      # Sensor
+      id_configurado_sensor: !input sensor_id_input
+      agora: "{{ now().strftime('%H:%M:%S') }}"
+      inicio_dia: !input dia_inicio
+      fim_dia: !input dia_fim
+      inicio_noite: !input noite_inicio
+      fim_noite: !input noite_fim
+
+  - choose:
+      # =========================================================
+      # BLOCO 1: TEMPO DE ESQUECIMENTO (BOTÃO)
+      # =========================================================
+      - conditions:
+          - condition: template
+            value_template: "{{ trigger.id == 'esquecimento' }}"
+        sequence:
+          - service: scene.turn_on
+            target: {entity_id: !input scene_off}
+          - service: counter.reset
+            target: {entity_id: !input counter_helper}
+          # Espera e libera sensor
+          - delay:
+              seconds: !input tempo_inibicao
+          - service: input_boolean.turn_off
+            target: {entity_id: !input helper_inibicao}
+          - stop: "Esquecimento executado e sensor liberado."
+
+      # =========================================================
+      # BLOCO 2: CLIQUE DO BOTÃO CENAS
+      # =========================================================
+      - conditions:
+          - condition: template
+            value_template: "{{ evento_id == id_configurado_botao }}"
+        sequence:
+          - choose:
+              # --- CLIQUE CURTO ---
+              - conditions: "{{ evento_tipo == 'curto' }}"
+                sequence:
+                  - choose:
+                      - conditions: "{{ states(entidade_contador) | int >= limite_max | int }}"
+                        sequence:
+                          - service: counter.reset
+                            target: { entity_id: !input counter_helper }
+                    default:
+                      - service: counter.increment
+                        target: { entity_id: !input counter_helper }
+                  
+                  - delay: "00:00:00.05"
+                  
+                  - choose:
+                      - conditions: "{{ is_state(entidade_contador, '1') }}"
+                        sequence: [{service: scene.turn_on, target: {entity_id: !input scene_1}}]
+                      - conditions: "{{ is_state(entidade_contador, '2') }}"
+                        sequence: [{service: scene.turn_on, target: {entity_id: !input scene_2}}]
+                      - conditions: "{{ is_state(entidade_contador, '3') }}"
+                        sequence: [{service: scene.turn_on, target: {entity_id: !input scene_3}}]
+                      - conditions: "{{ is_state(entidade_contador, '4') }}"
+                        sequence: [{service: scene.turn_on, target: {entity_id: !input scene_4}}]
+                      - conditions: "{{ is_state(entidade_contador, '5') }}"
+                        sequence: [{service: scene.turn_on, target: {entity_id: !input scene_5}}]
+                    default:
+                      # Voltou para a posição 0 (Off)
+                      - service: scene.turn_on
+                        target: {entity_id: !input scene_off}
+                      # Espera e libera sensor
+                      - delay:
+                          seconds: !input tempo_inibicao
+                      - service: input_boolean.turn_off
+                        target: {entity_id: !input helper_inibicao}
+
+              # --- CLIQUE LONGO ---
+              - conditions: "{{ evento_tipo == 'longo' }}"
+                sequence:
+                  - service: scene.turn_on
+                    target: {entity_id: !input scene_off}
+                  - service: counter.reset
+                    target: {entity_id: !input counter_helper}
+                  # Espera e libera sensor
+                  - delay:
+                      seconds: !input tempo_inibicao
+                  - service: input_boolean.turn_off
+                    target: {entity_id: !input helper_inibicao}
+
+      # =========================================================
+      # BLOCO 3: ACIONAMENTO DO SENSOR PERÍODOS
+      # =========================================================
+      - conditions:
+          # Condição extra: O sensor só executa se o helper estiver 'off' (falso)
+          - condition: template
+            value_template: "{{ evento_id == id_configurado_sensor and evento_tipo == 'curto' and is_state(entidade_inibicao, 'off') }}"
+        sequence:
+          - choose:
+              - conditions: "{{ agora >= inicio_dia and agora <= fim_dia }}"
+                sequence: [{service: scene.turn_on, target: { entity_id: !input scene_dia }}]
+              - conditions: "{{ agora >= inicio_noite and agora <= fim_noite }}"
+                sequence: [{service: scene.turn_on, target: { entity_id: !input scene_noite }}]
+              - conditions: [] 
+                sequence: [{service: scene.turn_on, target: { entity_id: !input scene_madrugada }}]
+
+          - delay:
+              seconds: !input tempo_ligada
+          - service: scene.turn_on
+            target: { entity_id: !input scene_off_sensor }
