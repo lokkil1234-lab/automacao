@@ -1,5 +1,5 @@
 blueprint:
-  name: "Botão Cenas + Sensor (Solução Definitiva)"
+  name: "Botão Cenas + Sensor (Versão Final Sem Erros)"
   domain: automation
   input:
     button_id_input: { name: ID do Botão }
@@ -39,17 +39,28 @@ trigger:
 
 action:
   - variables:
-      evento_id: "{{ trigger.event.data.button if trigger.platform == 'event' else 'nenhum' }}"
-      evento_tipo: "{{ trigger.event.data.type if trigger.platform == 'event' else 'nenhum' }}"
-      contador: !input counter_helper
+      # Mapeamento de IDs e Inputs para variáveis (evita o erro do '!')
       id_botao: !input button_id_input
       id_sensor: !input sensor_id_input
-      # Aqui definimos a entidade como variável pura, sem chaves de template
       entidade_inibicao: !input helper_inibicao
+      contador: !input counter_helper
+      
+      # Horários mapeados
+      h_ini_dia: !input dia_inicio
+      h_fim_dia: !input dia_fim
+      h_ini_noite: !input noite_inicio
+      h_fim_noite: !input noite_fim
+      
+      # Dados do evento
+      evento_id: "{{ trigger.event.data.button if trigger.platform == 'event' else 'nenhum' }}"
+      evento_tipo: "{{ trigger.event.data.type if trigger.platform == 'event' else 'nenhum' }}"
       agora: "{{ now().strftime('%H:%M:%S') }}"
 
   - choose:
-      - conditions: [{condition: template, value_template: "{{ trigger.id == 'esquecimento' }}"}]
+      # --- 1. ESQUECIMENTO ---
+      - conditions:
+          - condition: template
+            value_template: "{{ trigger.id == 'esquecimento' }}"
         sequence:
           - service: scene.turn_on
             target: {entity_id: !input scene_off}
@@ -59,15 +70,22 @@ action:
           - service: input_boolean.turn_off
             target: {entity_id: !input helper_inibicao}
 
-      - conditions: [{condition: template, value_template: "{{ evento_id == id_botao }}"}]
+      # --- 2. CLIQUE DO BOTÃO ---
+      - conditions:
+          - condition: template
+            value_template: "{{ evento_id == id_botao }}"
         sequence:
           - service: input_boolean.turn_on
             target: {entity_id: !input helper_inibicao}
           - choose:
-              - conditions: [{condition: template, value_template: "{{ evento_tipo == 'curto' }}"}]
+              - conditions:
+                  - condition: template
+                    value_template: "{{ evento_tipo == 'curto' }}"
                 sequence:
                   - choose:
-                      - conditions: [{condition: template, value_template: "{{ states(contador) | int >= state_attr(contador, 'maximum') | int(5) }}"}]
+                      - conditions:
+                          - condition: template
+                            value_template: "{{ states(contador) | int >= state_attr(contador, 'maximum') | int(5) }}"
                         sequence: [{service: counter.reset, target: {entity_id: !input counter_helper}}]
                     default: [{service: counter.increment, target: {entity_id: !input counter_helper}}]
                   - delay: "00:00:00.05"
@@ -88,7 +106,9 @@ action:
                       - delay: {seconds: !input tempo_inibicao}
                       - service: input_boolean.turn_off
                         target: {entity_id: !input helper_inibicao}
-              - conditions: [{condition: template, value_template: "{{ evento_tipo == 'longo' }}"}]
+              - conditions:
+                  - condition: template
+                    value_template: "{{ evento_tipo == 'longo' }}"
                 sequence:
                   - service: scene.turn_on
                     target: {entity_id: !input scene_off}
@@ -98,13 +118,19 @@ action:
                   - service: input_boolean.turn_off
                     target: {entity_id: !input helper_inibicao}
 
-      # 3. ACIONAMENTO DO SENSOR: Usa is_state() com a variável da entidade
-      - conditions: [{condition: template, value_template: "{{ evento_id == id_sensor and evento_tipo == 'curto' and is_state(entidade_inibicao, 'off') }}"}]
+      # --- 3. SENSOR PERÍODOS ---
+      - conditions:
+          - condition: template
+            value_template: "{{ evento_id == id_sensor and evento_tipo == 'curto' and is_state(entidade_inibicao, 'off') }}"
         sequence:
           - choose:
-              - conditions: [{condition: template, value_template: "{{ agora >= !input dia_inicio and agora <= !input dia_fim }}"}]
+              - conditions:
+                  - condition: template
+                    value_template: "{{ agora >= h_ini_dia and agora <= h_fim_dia }}"
                 sequence: [{service: scene.turn_on, target: {entity_id: !input scene_dia}}]
-              - conditions: [{condition: template, value_template: "{{ agora >= !input noite_inicio and agora <= !input noite_fim }}"}]
+              - conditions:
+                  - condition: template
+                    value_template: "{{ agora >= h_ini_noite and agora <= h_fim_noite }}"
                 sequence: [{service: scene.turn_on, target: {entity_id: !input scene_noite}}]
             default: [{service: scene.turn_on, target: {entity_id: !input scene_madrugada}}]
           - delay: {seconds: !input tempo_ligada}
