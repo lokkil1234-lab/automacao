@@ -1,5 +1,5 @@
 blueprint:
-  name: "Botão Cenas + Sensor Períodos (Inibição via Código)"
+  name: "Botão Cenas + Sensor Períodos (Corrigido)"
   description: "Ciclo de cenas com inibição automática do sensor a cada interação do botão."
   domain: automation
   input:
@@ -42,7 +42,6 @@ blueprint:
       selector: { entity: { domain: input_boolean } }
     tempo_inibicao:
       name: Tempo de Liberação do Sensor
-      description: "Tempo de espera após o clique do botão para liberar o sensor."
       default: 10
       selector: { number: { min: 0, max: 3600, unit_of_measurement: seconds, mode: box } }
 
@@ -101,10 +100,14 @@ action:
       evento_tipo: "{{ trigger.event.data.type if trigger.platform == 'event' else 'nenhum' }}"
       entidade_inibicao: !input helper_inibicao
       tempo_liberacao: !input tempo_inibicao
+      id_botao: !input button_id_input
+      id_sensor: !input sensor_id_input
 
   - choose:
       # 1. TEMPO DE ESQUECIMENTO
-      - conditions: "{{ trigger.id == 'esquecimento' }}"
+      - conditions:
+          - condition: template
+            value_template: "{{ trigger.id == 'esquecimento' }}"
         sequence:
           - service: scene.turn_on
             target: {entity_id: !input scene_off}
@@ -114,58 +117,64 @@ action:
           - service: input_boolean.turn_off
             target: {entity_id: !input helper_inibicao}
 
-      # 2. CLIQUE DO BOTÃO (Inibe sensor imediatamente)
-      - conditions: "{{ evento_id == !input button_id_input }}"
+      # 2. CLIQUE DO BOTÃO
+      - conditions:
+          - condition: template
+            value_template: "{{ evento_id == id_botao }}"
         sequence:
-          # Inibe o sensor ao tocar no botão
           - service: input_boolean.turn_on
             target: {entity_id: !input helper_inibicao}
-          
           - choose:
-              - conditions: "{{ evento_tipo == 'curto' }}"
+              - conditions:
+                  - condition: template
+                    value_template: "{{ evento_tipo == 'curto' }}"
                 sequence:
                   - choose:
-                      - conditions: "{{ states(!input counter_helper) | int >= state_attr(!input counter_helper, 'maximum') | int(5) }}"
+                      - conditions:
+                          - condition: template
+                            value_template: "{{ states(!input counter_helper) | int >= state_attr(!input counter_helper, 'maximum') | int(5) }}"
                         sequence: [{service: counter.reset, target: {entity_id: !input counter_helper}}]
                     default: [{service: counter.increment, target: {entity_id: !input counter_helper}}]
-                  
                   - delay: "00:00:00.05"
-                  
                   - choose:
-                      - conditions: "{{ is_state(!input counter_helper, '1') }}"
+                      - conditions: [{condition: template, value_template: "{{ is_state(!input counter_helper, '1') }}"}]
                         sequence: [{service: scene.turn_on, target: {entity_id: !input scene_1}}]
-                      - conditions: "{{ is_state(!input counter_helper, '2') }}"
+                      - conditions: [{condition: template, value_template: "{{ is_state(!input counter_helper, '2') }}"}]
                         sequence: [{service: scene.turn_on, target: {entity_id: !input scene_2}}]
-                      - conditions: "{{ is_state(!input counter_helper, '3') }}"
+                      - conditions: [{condition: template, value_template: "{{ is_state(!input counter_helper, '3') }}"}]
                         sequence: [{service: scene.turn_on, target: {entity_id: !input scene_3}}]
-                      - conditions: "{{ is_state(!input counter_helper, '4') }}"
+                      - conditions: [{condition: template, value_template: "{{ is_state(!input counter_helper, '4') }}"}]
                         sequence: [{service: scene.turn_on, target: {entity_id: !input scene_4}}]
-                      - conditions: "{{ is_state(!input counter_helper, '5') }}"
+                      - conditions: [{condition: template, value_template: "{{ is_state(!input counter_helper, '5') }}"}]
                         sequence: [{service: scene.turn_on, target: {entity_id: !input scene_5}}]
                     default: [{service: scene.turn_on, target: {entity_id: !input scene_off}}]
-              
-              - conditions: "{{ evento_tipo == 'longo' }}"
+              - conditions:
+                  - condition: template
+                    value_template: "{{ evento_tipo == 'longo' }}"
                 sequence:
                   - service: scene.turn_on
                     target: {entity_id: !input scene_off}
                   - service: counter.reset
                     target: {entity_id: !input counter_helper}
-          
-          # Espera o tempo definido para liberar o sensor novamente
           - delay: {seconds: !input tempo_inibicao}
           - service: input_boolean.turn_off
             target: {entity_id: !input helper_inibicao}
 
-      # 3. ACIONAMENTO DO SENSOR (Com filtro de inibição)
-      - conditions: "{{ evento_id == !input sensor_id_input and evento_tipo == 'curto' and is_state(entidade_inibicao, 'off') }}"
+      # 3. ACIONAMENTO DO SENSOR
+      - conditions:
+          - condition: template
+            value_template: "{{ evento_id == id_sensor and evento_tipo == 'curto' and is_state(entidade_inibicao, 'off') }}"
         sequence:
           - choose:
-              - conditions: "{{ now().strftime('%H:%M:%S') >= !input dia_inicio and now().strftime('%H:%M:%S') <= !input dia_fim }}"
+              - conditions:
+                  - condition: template
+                    value_template: "{{ now().strftime('%H:%M:%S') >= !input dia_inicio and now().strftime('%H:%M:%S') <= !input dia_fim }}"
                 sequence: [{service: scene.turn_on, target: {entity_id: !input scene_dia}}]
-              - conditions: "{{ now().strftime('%H:%M:%S') >= !input noite_inicio and now().strftime('%H:%M:%S') <= !input noite_fim }}"
+              - conditions:
+                  - condition: template
+                    value_template: "{{ now().strftime('%H:%M:%S') >= !input noite_inicio and now().strftime('%H:%M:%S') <= !input noite_fim }}"
                 sequence: [{service: scene.turn_on, target: {entity_id: !input scene_noite}}]
             default: [{service: scene.turn_on, target: {entity_id: !input scene_madrugada}}]
-          
           - delay: {seconds: !input tempo_ligada}
           - service: scene.turn_on
             target: {entity_id: !input scene_off_sensor}
