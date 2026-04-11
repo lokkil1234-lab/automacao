@@ -1,6 +1,6 @@
 blueprint:
-  name: "Botão Cenas (Counter Nativo)"
-  description: "Cicla cenas usando o domínio counter."
+  name: "Botão Cenas (Counter Nativo Dinâmico)"
+  description: "Cicla cenas usando o limite máximo configurado no próprio counter."
   domain: automation
   input:
     button_id_input:
@@ -8,11 +8,6 @@ blueprint:
     counter_helper:
       name: Ajudante de Contador
       selector: { entity: { domain: counter } }
-    limite_contador:
-      name: Limite do Contador
-      description: "Número máximo de cenas antes de resetar para zero."
-      default: 5
-      selector: { number: { min: 1, max: 10, mode: box } }
     scene_1:
       name: Cena 1
       selector: { entity: { domain: scene } }
@@ -56,7 +51,8 @@ trigger:
 action:
   - variables:
       entidade_contador: !input counter_helper
-      limite_max: !input limite_contador
+      # Lê o valor máximo configurado nas opções do helper Counter
+      limite_max: "{{ state_attr(entidade_contador, 'maximum') | int(5) }}"
       evento_botao: "{{ trigger.event.data.button if trigger.platform == 'event' else 'nenhum' }}"
       evento_tipo: "{{ trigger.event.data.type if trigger.platform == 'event' else 'nenhum' }}"
       id_configurado: !input button_id_input
@@ -70,7 +66,7 @@ action:
         target: {entity_id: !input scene_off}
       - service: counter.reset
         target: {entity_id: !input counter_helper}
-      - stop: "Esquecimento: Cena desligada e contador resetado."
+      - stop: "Esquecimento: Cena desligada."
 
   # --- FILTRO DE ID ---
   - condition: template
@@ -81,6 +77,7 @@ action:
       - conditions: "{{ evento_tipo == 'curto' }}"
         sequence:
           - choose:
+              # Se o estado atual for igual ou maior que o limite máximo do helper
               - conditions: "{{ states(entidade_contador) | int >= limite_max | int }}"
                 sequence:
                   - service: counter.reset
