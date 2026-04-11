@@ -1,5 +1,5 @@
 blueprint:
-  name: "Botão Cenas + Sensor (Inibição Inteligente)"
+  name: "Botão Cenas + Sensor (Corrigido Target)"
   domain: automation
   input:
     button_id_input: { name: ID do Botão }
@@ -42,11 +42,8 @@ action:
       evento_id: "{{ trigger.event.data.button if trigger.platform == 'event' else 'nenhum' }}"
       evento_tipo: "{{ trigger.event.data.type if trigger.platform == 'event' else 'nenhum' }}"
       contador: !input counter_helper
-      max_val: "{{ state_attr(contador, 'maximum') | int(5) }}"
       id_botao: !input button_id_input
       id_sensor: !input sensor_id_input
-      inibidor: !input helper_inibicao
-      t_inib: !input tempo_inibicao
       agora: "{{ now().strftime('%H:%M:%S') }}"
 
   - choose:
@@ -57,28 +54,23 @@ action:
             target: {entity_id: !input scene_off}
           - service: counter.reset
             target: {entity_id: !input counter_helper}
-          - delay: {seconds: "{{ t_inib }}"}
+          - delay: {seconds: !input tempo_inibicao}
           - service: input_boolean.turn_off
-            target: {entity_id: inibidor}
+            target: {entity_id: !input helper_inibicao}
 
       # 2. CLIQUE DO BOTÃO
       - conditions: [{condition: template, value_template: "{{ evento_id == id_botao }}"}]
         sequence:
-          # Sempre garante inibição ao tocar no botão para evitar conflito com o sensor
           - service: input_boolean.turn_on
-            target: {entity_id: inibidor}
-          
+            target: {entity_id: !input helper_inibicao}
           - choose:
-              # --- CLIQUE CURTO ---
               - conditions: [{condition: template, value_template: "{{ evento_tipo == 'curto' }}"}]
                 sequence:
                   - choose:
-                      - conditions: [{condition: template, value_template: "{{ states(contador) | int >= max_val }}"}]
+                      - conditions: [{condition: template, value_template: "{{ states(contador) | int >= state_attr(contador, 'maximum') | int(5) }}"}]
                         sequence: [{service: counter.reset, target: {entity_id: !input counter_helper}}]
                     default: [{service: counter.increment, target: {entity_id: !input counter_helper}}]
-                  
                   - delay: "00:00:00.05"
-                  
                   - choose:
                       - conditions: [{condition: template, value_template: "{{ is_state(contador, '1') }}"}]
                         sequence: [{service: scene.turn_on, target: {entity_id: !input scene_1}}]
@@ -91,26 +83,23 @@ action:
                       - conditions: [{condition: template, value_template: "{{ is_state(contador, '5') }}"}]
                         sequence: [{service: scene.turn_on, target: {entity_id: !input scene_5}}]
                     default: 
-                      # Caso caia no OFF (fim do ciclo)
                       - service: scene.turn_on
                         target: {entity_id: !input scene_off}
-                      - delay: {seconds: "{{ t_inib }}"}
+                      - delay: {seconds: !input tempo_inibicao}
                       - service: input_boolean.turn_off
-                        target: {entity_id: inibidor}
-              
-              # --- CLIQUE LONGO ---
+                        target: {entity_id: !input helper_inibicao}
               - conditions: [{condition: template, value_template: "{{ evento_tipo == 'longo' }}"}]
                 sequence:
                   - service: scene.turn_on
                     target: {entity_id: !input scene_off}
                   - service: counter.reset
                     target: {entity_id: !input counter_helper}
-                  - delay: {seconds: "{{ t_inib }}"}
+                  - delay: {seconds: !input tempo_inibicao}
                   - service: input_boolean.turn_off
-                    target: {entity_id: inibidor}
+                    target: {entity_id: !input helper_inibicao}
 
       # 3. ACIONAMENTO DO SENSOR
-      - conditions: [{condition: template, value_template: "{{ evento_id == id_sensor and evento_tipo == 'curto' and is_state(inibidor, 'off') }}"}]
+      - conditions: [{condition: template, value_template: "{{ evento_id == id_sensor and evento_tipo == 'curto' and is_state(!input helper_inibicao, 'off') }}"}]
         sequence:
           - choose:
               - conditions: [{condition: template, value_template: "{{ agora >= !input dia_inicio and agora <= !input dia_fim }}"}]
@@ -118,7 +107,6 @@ action:
               - conditions: [{condition: template, value_template: "{{ agora >= !input noite_inicio and agora <= !input noite_fim }}"}]
                 sequence: [{service: scene.turn_on, target: {entity_id: !input scene_noite}}]
             default: [{service: scene.turn_on, target: {entity_id: !input scene_madrugada}}]
-          
           - delay: {seconds: !input tempo_ligada}
           - service: scene.turn_on
             target: {entity_id: !input scene_off_sensor}
