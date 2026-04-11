@@ -24,8 +24,7 @@ blueprint:
     noite_inicio: { name: Início da Noite, default: "18:00:01", selector: { time: {} } }
     noite_fim: { name: Fim da Noite, default: "23:59:59", selector: { time: {} } }
 
-mode: parallel
-max: 10
+mode: restart
 
 trigger:
   - platform: event
