@@ -1,85 +1,31 @@
 blueprint:
-  name: "Botão Cenas + Sensor Períodos (Corrigido)"
-  description: "Ciclo de cenas com inibição automática do sensor a cada interação do botão."
+  name: "Botão Cenas + Sensor Períodos (Versão Final)"
   domain: automation
   input:
-    # --- BOTÃO CENAS ---
     button_id_input:
       name: ID do Botão
     counter_helper:
       name: Ajudante de Contador
       selector: { entity: { domain: counter } }
-    scene_1:
-      name: Cena 1
-      selector: { entity: { domain: scene } }
-    scene_2:
-      name: Cena 2
-      default: []
-      selector: { entity: { domain: scene } }
-    scene_3:
-      name: Cena 3
-      default: []
-      selector: { entity: { domain: scene } }
-    scene_4:
-      name: Cena 4
-      default: []
-      selector: { entity: { domain: scene } }
-    scene_5:
-      name: Cena 5
-      default: []
-      selector: { entity: { domain: scene } }
-    scene_off:
-      name: Cena Desligar (Botão)
-      selector: { entity: { domain: scene } }
-    tempo_esquecimento:
-      name: Tempo de Esquecimento (Botão)
-      default: "01:00:00"
-      selector: { duration: {} }
-
-    # --- INIBIÇÃO ---
-    helper_inibicao:
-      name: Helper de Inibição do Sensor
-      selector: { entity: { domain: input_boolean } }
-    tempo_inibicao:
-      name: Tempo de Liberação do Sensor
-      default: 10
-      selector: { number: { min: 0, max: 3600, unit_of_measurement: seconds, mode: box } }
-
-    # --- SENSOR PERÍODOS ---
-    sensor_id_input:
-      name: ID do Sensor
-    tempo_ligada:
-      name: Tempo de Permanência (Sensor)
-      default: 60
-      selector: { number: { min: 1, max: 3600, unit_of_measurement: seconds, mode: box } }
-    scene_dia:
-      name: Cena Dia
-      selector: { entity: { domain: scene } }
-    scene_noite:
-      name: Cena Noite
-      selector: { entity: { domain: scene } }
-    scene_madrugada:
-      name: Cena Madrugada
-      selector: { entity: { domain: scene } }
-    scene_off_sensor:
-      name: Cena Desligar (Sensor)
-      selector: { entity: { domain: scene } }
-    dia_inicio:
-      name: Início do Dia
-      default: "06:00:00"
-      selector: { time: {} }
-    dia_fim:
-      name: Fim do Dia
-      default: "18:00:00"
-      selector: { time: {} }
-    noite_inicio:
-      name: Início da Noite
-      default: "18:00:01"
-      selector: { time: {} }
-    noite_fim:
-      name: Fim da Noite
-      default: "23:59:59"
-      selector: { time: {} }
+    scene_1: { name: Cena 1, selector: { entity: { domain: scene } } }
+    scene_2: { name: Cena 2, default: [], selector: { entity: { domain: scene } } }
+    scene_3: { name: Cena 3, default: [], selector: { entity: { domain: scene } } }
+    scene_4: { name: Cena 4, default: [], selector: { entity: { domain: scene } } }
+    scene_5: { name: Cena 5, default: [], selector: { entity: { domain: scene } } }
+    scene_off: { name: Cena Desligar (Botão), selector: { entity: { domain: scene } } }
+    tempo_esquecimento: { name: Tempo de Esquecimento, default: "01:00:00", selector: { duration: {} } }
+    helper_inibicao: { name: Helper de Inibição, selector: { entity: { domain: input_boolean } } }
+    tempo_inibicao: { name: Tempo de Liberação, default: 10, selector: { number: { min: 0, max: 3600, mode: box } } }
+    sensor_id_input: { name: ID do Sensor }
+    tempo_ligada: { name: Tempo de Permanência (Sensor), default: 60, selector: { number: { min: 1, max: 3600, mode: box } } }
+    scene_dia: { name: Cena Dia, selector: { entity: { domain: scene } } }
+    scene_noite: { name: Cena Noite, selector: { entity: { domain: scene } } }
+    scene_madrugada: { name: Cena Madrugada, selector: { entity: { domain: scene } } }
+    scene_off_sensor: { name: Cena Desligar (Sensor), selector: { entity: { domain: scene } } }
+    dia_inicio: { name: Início do Dia, default: "06:00:00", selector: { time: {} } }
+    dia_fim: { name: Fim do Dia, default: "18:00:00", selector: { time: {} } }
+    noite_inicio: { name: Início da Noite, default: "18:00:01", selector: { time: {} } }
+    noite_fim: { name: Fim da Noite, default: "23:59:59", selector: { time: {} } }
 
 mode: parallel
 max: 10
@@ -98,16 +44,13 @@ action:
   - variables:
       evento_id: "{{ trigger.event.data.button if trigger.platform == 'event' else 'nenhum' }}"
       evento_tipo: "{{ trigger.event.data.type if trigger.platform == 'event' else 'nenhum' }}"
-      entidade_inibicao: !input helper_inibicao
-      tempo_liberacao: !input tempo_inibicao
+      contador: !input counter_helper
+      max_val: "{{ state_attr(contador, 'maximum') | int(5) }}"
       id_botao: !input button_id_input
       id_sensor: !input sensor_id_input
 
   - choose:
-      # 1. TEMPO DE ESQUECIMENTO
-      - conditions:
-          - condition: template
-            value_template: "{{ trigger.id == 'esquecimento' }}"
+      - conditions: [{condition: template, value_template: "{{ trigger.id == 'esquecimento' }}"}]
         sequence:
           - service: scene.turn_on
             target: {entity_id: !input scene_off}
@@ -117,40 +60,31 @@ action:
           - service: input_boolean.turn_off
             target: {entity_id: !input helper_inibicao}
 
-      # 2. CLIQUE DO BOTÃO
-      - conditions:
-          - condition: template
-            value_template: "{{ evento_id == id_botao }}"
+      - conditions: [{condition: template, value_template: "{{ evento_id == id_botao }}"}]
         sequence:
           - service: input_boolean.turn_on
             target: {entity_id: !input helper_inibicao}
           - choose:
-              - conditions:
-                  - condition: template
-                    value_template: "{{ evento_tipo == 'curto' }}"
+              - conditions: [{condition: template, value_template: "{{ evento_tipo == 'curto' }}"}]
                 sequence:
                   - choose:
-                      - conditions:
-                          - condition: template
-                            value_template: "{{ states(!input counter_helper) | int >= state_attr(!input counter_helper, 'maximum') | int(5) }}"
+                      - conditions: [{condition: template, value_template: "{{ states(contador) | int >= max_val }}"}]
                         sequence: [{service: counter.reset, target: {entity_id: !input counter_helper}}]
                     default: [{service: counter.increment, target: {entity_id: !input counter_helper}}]
                   - delay: "00:00:00.05"
                   - choose:
-                      - conditions: [{condition: template, value_template: "{{ is_state(!input counter_helper, '1') }}"}]
+                      - conditions: [{condition: template, value_template: "{{ is_state(contador, '1') }}"}]
                         sequence: [{service: scene.turn_on, target: {entity_id: !input scene_1}}]
-                      - conditions: [{condition: template, value_template: "{{ is_state(!input counter_helper, '2') }}"}]
+                      - conditions: [{condition: template, value_template: "{{ is_state(contador, '2') }}"}]
                         sequence: [{service: scene.turn_on, target: {entity_id: !input scene_2}}]
-                      - conditions: [{condition: template, value_template: "{{ is_state(!input counter_helper, '3') }}"}]
+                      - conditions: [{condition: template, value_template: "{{ is_state(contador, '3') }}"}]
                         sequence: [{service: scene.turn_on, target: {entity_id: !input scene_3}}]
-                      - conditions: [{condition: template, value_template: "{{ is_state(!input counter_helper, '4') }}"}]
+                      - conditions: [{condition: template, value_template: "{{ is_state(contador, '4') }}"}]
                         sequence: [{service: scene.turn_on, target: {entity_id: !input scene_4}}]
-                      - conditions: [{condition: template, value_template: "{{ is_state(!input counter_helper, '5') }}"}]
+                      - conditions: [{condition: template, value_template: "{{ is_state(contador, '5') }}"}]
                         sequence: [{service: scene.turn_on, target: {entity_id: !input scene_5}}]
                     default: [{service: scene.turn_on, target: {entity_id: !input scene_off}}]
-              - conditions:
-                  - condition: template
-                    value_template: "{{ evento_tipo == 'longo' }}"
+              - conditions: [{condition: template, value_template: "{{ evento_tipo == 'longo' }}"}]
                 sequence:
                   - service: scene.turn_on
                     target: {entity_id: !input scene_off}
@@ -160,19 +94,12 @@ action:
           - service: input_boolean.turn_off
             target: {entity_id: !input helper_inibicao}
 
-      # 3. ACIONAMENTO DO SENSOR
-      - conditions:
-          - condition: template
-            value_template: "{{ evento_id == id_sensor and evento_tipo == 'curto' and is_state(entidade_inibicao, 'off') }}"
+      - conditions: [{condition: template, value_template: "{{ evento_id == id_sensor and evento_tipo == 'curto' and is_state(!input helper_inibicao, 'off') }}"}]
         sequence:
           - choose:
-              - conditions:
-                  - condition: template
-                    value_template: "{{ now().strftime('%H:%M:%S') >= !input dia_inicio and now().strftime('%H:%M:%S') <= !input dia_fim }}"
+              - conditions: [{condition: template, value_template: "{{ now().strftime('%H:%M:%S') >= !input dia_inicio and now().strftime('%H:%M:%S') <= !input dia_fim }}"}]
                 sequence: [{service: scene.turn_on, target: {entity_id: !input scene_dia}}]
-              - conditions:
-                  - condition: template
-                    value_template: "{{ now().strftime('%H:%M:%S') >= !input noite_inicio and now().strftime('%H:%M:%S') <= !input noite_fim }}"
+              - conditions: [{condition: template, value_template: "{{ now().strftime('%H:%M:%S') >= !input noite_inicio and now().strftime('%H:%M:%S') <= !input noite_fim }}"}]
                 sequence: [{service: scene.turn_on, target: {entity_id: !input scene_noite}}]
             default: [{service: scene.turn_on, target: {entity_id: !input scene_madrugada}}]
           - delay: {seconds: !input tempo_ligada}
