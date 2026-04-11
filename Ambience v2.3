@@ -1,5 +1,5 @@
 blueprint:
-  name: "Botão Cenas + Sensor (Corrigido Definitivo)"
+  name: "Botão Cenas + Sensor (Solução Definitiva)"
   domain: automation
   input:
     button_id_input: { name: ID do Botão }
@@ -44,8 +44,8 @@ action:
       contador: !input counter_helper
       id_botao: !input button_id_input
       id_sensor: !input sensor_id_input
-      # A MÁGICA ESTÁ AQUI: Lê o estado do helper para uma variável
-      estado_inibicao: "{{ states(!input helper_inibicao) }}"
+      # Aqui definimos a entidade como variável pura, sem chaves de template
+      entidade_inibicao: !input helper_inibicao
       agora: "{{ now().strftime('%H:%M:%S') }}"
 
   - choose:
@@ -98,8 +98,8 @@ action:
                   - service: input_boolean.turn_off
                     target: {entity_id: !input helper_inibicao}
 
-      # 3. ACIONAMENTO DO SENSOR: Agora usa a variável estado_inibicao
-      - conditions: [{condition: template, value_template: "{{ evento_id == id_sensor and evento_tipo == 'curto' and estado_inibicao == 'off' }}"}]
+      # 3. ACIONAMENTO DO SENSOR: Usa is_state() com a variável da entidade
+      - conditions: [{condition: template, value_template: "{{ evento_id == id_sensor and evento_tipo == 'curto' and is_state(entidade_inibicao, 'off') }}"}]
         sequence:
           - choose:
               - conditions: [{condition: template, value_template: "{{ agora >= !input dia_inicio and agora <= !input dia_fim }}"}]
